@@ -1,0 +1,148 @@
+{
+  "version": "1.0.0",
+  "updateTime": "2026-03-13",
+  "chapters": [
+    {
+      "id": "part1",
+      "title": "上篇 · 技术基础",
+      "sections": [
+        {
+          "id": "chapter1",
+          "title": "一、基础篇",
+          "children": [
+            {
+              "id": "1-1",
+              "title": "网络基础",
+              "points": [
+                {
+                  "id": "1-1-1",
+                  "title": "TCP三次握手与四次挥手",
+                  "content": "### TCP三次握手过程\n```mermaid\nsequenceDiagram\n    participant C as 客户端\n    participant S as 服务端\n    C->>S: SYN=1, seq=x<br>第一次握手<br>Client进入syn_sent状态\n    S->>C: SYN=1, ACK=1, ack=x+1, seq=y<br>第二次握手<br>Server进入syn_rcvd状态\n    C->>S: ACK=1, ack=y+1, seq=x+1<br>第三次握手<br>连接进入Established状态\n```\n\n1. 客户端发送带有SYN标志的数据包到服务端，一次握手，Client进入syn_sent状态\n2. 服务端发送带有SYN/ACK标志的数据包到客户端，二次握手，服务端进入syn_rcvd状态\n3. 客户端发送带有ACK标志的数据包到服务端，三次握手，连接进入Established状态\n\n### 为什么需要三次握手？\n主要是为了建立可靠的通信信道，保证客户端与服务端同时具备发送、接收数据的能力。\n\n### 为什么两次握手不行？\n1. 防止已失效的请求报文又传送到了服务端，建立了多余的链接，浪费资源\n2. 两次握手只能保证单向连接是畅通的。为了实现可靠数据传输，TCP协议的通信双方都必须维护一个序列号，以标识发送出去的数据包中哪些是已经被对方收到的。三次握手的过程即是通信双方相互告知序列号起始值，并确认对方已经收到了序列号起始值的必经步骤；如果只是两次握手，至多只有连接发起方的起始序列号能被确认，另一方选择的序列号则得不到确认。\n\n---\n\n### TCP四次挥手过程\n```mermaid\nsequenceDiagram\n    participant C as 客户端\n    participant S as 服务端\n    C->>S: FIN=1, seq=u<br>第一次挥手<br>Client进入FIN-WAIT-1状态\n    S->>C: ACK=1, ack=u+1, seq=v<br>第二次挥手<br>Server进入CLOSE-WAIT状态<br>Client进入FIN-WAIT-2状态\n    S->>C: FIN=1, ACK=1, ack=u+1, seq=w<br>第三次挥手<br>Server进入LAST-ACK状态\n    C->>S: ACK=1, ack=w+1, seq=u+1<br>第四次挥手<br>Client进入TIME-WAIT状态<br>Server关闭连接<br>Client等待2MSL后关闭\n```\n\n1. 客户端发送带有FIN标志的数据包到服务端，关闭与服务端的连接，客户端进入FIN-WAIT-1状态\n2. 服务端收到这个FIN，发回一个ACK，确认序号为收到的序号加1，服务端进入CLOSE-WAIT状态\n3. 服务端发送一个FIN数据包到客户端，关闭与客户端的连接，客户端进入FIN-WAIT-2状态\n4. 客户端收到这个FIN，发回ACK报文确认，并将确认序号设置为收到序号加1，进入TIME-WAIT状态\n\n### 为什么需要四次挥手？\n因为服务端收到客户端的FIN报文时，可能还有数据没有发送完成，不能立即关闭连接，所以先回复ACK确认，等数据发送完成后再发送FIN报文，所以需要四次挥手。\n\n### TIME-WAIT状态\n- **作用**：为了解决网络的丢包和网络不稳定所带来的其他问题，确保连接方能在时间范围内关闭自己的连接\n- **时长**：2MSL（Maximum Segment Lifetime，最长报文寿命，一般为2分钟）\n- **目的**：\n  1. 保证最后一个ACK能被对方收到\n  2. 让本次连接所有的报文都从网络中消失，避免和后续连接的报文混淆\n\n### 查看TIME-WAIT数量\n```bash\nnetstat -an |grep TIME_WAIT|wc -l\n```\n\n### TIME-WAIT过多的原因与解决\n- **原因**：高并发短连接的TCP服务器上，当服务器处理完请求后立刻按照主动正常关闭连接\n- **解决方案对比**：\n| 方案 | 优点 | 缺点 | 适用场景 |\n|------|------|------|----------|\n| 调整内核参数（tcp_tw_reuse/tcp_tw_recycle） | 无需修改业务代码，生效快 | 可能引发TCP协议问题，NAT环境下recycle会导致连接失败 | 内网非NAT环境 |\n| 负载均衡+长连接 | 从架构层面解决，根本上减少短连接 | 需要架构改造，增加复杂度 | 高并发生产环境 |\n| 服务器主动关闭连接改为客户端主动关闭 | 简单可控，无协议风险 | 需要修改业务逻辑 | 可以控制客户端行为的场景 |"
+                },
+                {
+                  "id": "1-1-2",
+                  "title": "OSI与TCP/IP模型",
+                  "content": "### 网络模型架构对比\n```mermaid\ngraph TD\n    A[OSI七层模型] --> A1[应用层]\n    A --> A2[表示层]\n    A --> A3[会话层]\n    A --> A4[传输层]\n    A --> A5[网络层]\n    A --> A6[数据链路层]\n    A --> A7[物理层]\n\n    B[TCP/IP五层模型] --> B1[应用层]<br>HTTP/FTP/DNS\n    B --> B2[传输层]<br>TCP/UDP\n    B --> B3[网络层]<br>IP/ICMP\n    B --> B4[数据链路层]<br>MAC/ARP\n    B --> B5[物理层]<br>以太网/光纤\n\n    style A1 fill:#e3f2fd\n    style A2 fill:#e3f2fd\n    style A3 fill:#e3f2fd\n    style B1 fill:#e3f2fd,stroke:#2196f3,stroke-width:2px\n```\n\n### OSI七层模型\n1. 物理层\n2. 数据链路层\n3. 网络层\n4. 传输层\n5. 会话层\n6. 表示层\n7. 应用层\n\n### TCP/IP五层模型\n1. 物理层\n2. 数据链路层\n3. 网络层\n4. 传输层\n5. 应用层\n\n### 常见网络服务分层\n- **应用层**：HTTP、SMTP、DNS、FTP\n- **传输层**：TCP、UDP\n- **网络层**：ICMP、IP、路由器、防火墙\n- **数据链路层**：网卡、网桥、交换机\n- **物理层**：中继器、集线器"
+                },
+                {
+                  "id": "1-1-3",
+                  "title": "TCP与UDP区别及场景",
+                  "content": "| 对比项 | TCP | UDP |\n|--------|-----|-----|\n| 特点 | 面向连接、可靠、字节流 | 无连接、不可靠、数据报文段 |\n| 性能 | 传输效率慢、所需资源多 | 传输效率快、所需资源少 |\n| 应用场景 | 文件、邮件传输 | 语音、视频、直播 |\n| 首部字节 | 20-60 | 8个字节 |\n| 流量控制 | 有（滑动窗口） | 无 |\n| 拥塞控制 | 有（慢开始、拥塞避免） | 无 |\n| 有序性 | 保证 | 不保证 |\n\n### 基于TCP的协议\nHTTP、FTP、SMTP、SSH、Telnet\n\n### 基于UDP的协议\nRIP、DNS、SNMP、DHCP、实时音视频协议"
+                },
+                {
+                  "id": "1-1-4",
+                  "title": "TCP滑动窗口与拥塞控制",
+                  "content": "TCP通过以下措施保证数据的可靠传输：\n- 应用数据分割\n- 对数据包进行编号\n- 校验和\n- 流量控制（滑动窗口）\n- 拥塞控制\n- 超时重传\n\n### 滑动窗口流量控制\n```mermaid\ngraph LR\n    A[发送方窗口] --> A1[已发送已确认]\n    A --> A2[已发送未确认]\n    A --> A3[未发送可发送]\n    A --> A4[未发送不可发送]\n\n    B[接收方窗口] --> B1[已接收已确认]\n    B --> B2[未接收可接收]\n    B --> B3[未接收不可接收]\n\n    B2 -- 窗口大小通知 --> A3\n```\n\n- 接收方通过TCP首部的窗口大小字段通知发送方自己的接收能力\n- 发送方根据接收方的窗口大小调整发送速率，防止接收方缓冲区溢出\n- 窗口是动态变化的，随接收方处理能力调整\n\n### 拥塞控制\n- **目的**：防止过多的数据注入到网络中，避免网络中的路由器、链路过载\n- **核心算法**：\n  1. **慢开始**：连接建立后，拥塞窗口从1开始指数增长，达到慢开始门限后进入拥塞避免\n  2. **拥塞避免**：拥塞窗口线性增长，发生拥塞时调整慢开始门限\n  3. **快重传**：收到3个重复ACK时直接重传丢失的报文，不用等待超时\n  4. **快恢复**：发生拥塞时窗口减半，直接进入拥塞避免，不用从1开始慢开始"
+                },
+                {
+                  "id": "1-1-5",
+                  "title": "TCP粘包原因和解决方法",
+                  "content": "### 什么是粘包\nTCP粘包是指发送方发送的若干包数据到接收方接收时粘成一包。\n\n### 原因\n#### 发送方原因\nTCP默认使用Nagle算法（减少网络中报文段的数量），收集多个小分组，在一个确认到来时一起发送，导致粘包问题。\n\n#### 接收方原因\nTCP将接收到的数据包保存在接收缓存里，如果TCP接收数据包到缓存的速度大于应用程序从缓存中读取数据包的速度，多个包就会被缓存，应用程序就有可能读取到多个首尾相接粘到一起的包。\n\n### 解决方法对比\n| 方案 | 优点 | 缺点 | 适用场景 |\n|------|------|------|----------|\n| 定长包 | 实现简单 | 空间浪费，小数据也占满固定长度 | 固定长度协议场景 |\n| 特殊分隔符 | 节省空间 | 内容中不能包含分隔符，否则会解析错误 | 文本类协议，如FTP |\n| 包头+长度 | 灵活高效，无内容限制 | 实现稍复杂 | 绝大多数业务场景，推荐使用 |\n\n### Java Netty实现示例（长度字段解决方案）\n```java\n// 解码器：先读4字节长度，再读取对应长度的内容\npublic class LengthFieldBasedFrameDecoder extends ByteToMessageDecoder {\n    @Override\n    protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) {\n        if (in.readableBytes() < 4) {\n            return;\n        }\n        in.markReaderIndex();\n        int length = in.readInt();\n        if (in.readableBytes() < length) {\n            in.resetReaderIndex();\n            return;\n        }\n        ByteBuf data = in.readBytes(length);\n        out.add(data);\n    }\n}\n```"
+                }
+              ]
+            },
+            {
+              "id": "1-2",
+              "title": "HTTP协议",
+              "points": [
+                {
+                  "id": "1-2-1",
+                  "title": "HTTP协议版本对比",
+                  "content": "### HTTP请求处理流程\n```mermaid\nsequenceDiagram\n    participant C as 客户端\n    participant S as 服务器\n    C->>S: DNS解析获取IP\n    C->>S: TCP三次握手建立连接\n    C->>S: 发送HTTP请求报文\n    S->>C: 返回HTTP响应报文\n    alt HTTP 1.0\n        S->>C: TCP四次挥手断开连接\n    else HTTP 1.1/2.0\n        S->>C: 保持长连接，可复用处理后续请求\n    end\n```\n\n### HTTP 1.0\n服务器处理完成后立即断开TCP连接（无连接），服务器不跟踪每个客户端也不记录过去的请求（无状态）。\n\n### HTTP 1.1\n- KeepAlived长连接避免了连接建立和释放的开销\n- 通过Content-Length判断当前请求数据是否已经全部接收\n- 新增缓存控制策略（Entity tag、If-Match）\n- 支持断点续传\n- 新增24个错误状态响应码\n- 支持Host头域，不再以IP为请求方标志\n\n**问题**：同一时间同一域名只能有6个并行请求，队头阻塞问题。\n\n### HTTP 2.0\n- **二进制传输格式**：替代1.x的文本格式，解析更高效\n- **多路复用**：连接共享，同一个TCP连接可以并行处理多个请求，解决队头阻塞\n- **Header压缩**：HPACK算法压缩Header，减少重复传输\n- **服务端推送**：服务器可以主动向客户端推送资源，减少请求延迟\n\n### HTTP 3.0（QUIC）\n- 基于UDP实现，彻底解决TCP队头阻塞问题\n- 0-RTT握手，连接建立更快\n- 更好的移动网络切换支持\n- 目前还在普及阶段"
+                },
+                {
+                  "id": "1-2-2",
+                  "title": "HTTP与HTTPS区别",
+                  "content": "| 对比项 | HTTP | HTTPS |\n|--------|------|-------|\n| 默认端口 | 80 | 443 |\n| 传输方式 | 明文传输、数据未加密、安全性差 | 传输过程SSL/TLS加密、安全性较好 |\n| 性能 | 响应速度快、消耗资源少 | 响应速度较慢、消耗资源多、需要CA证书 |\n| 协议层 | 应用层 | HTTP + TLS/SSL（传输层加密） |\n\n### HTTPS建立连接过程\n```mermaid\nsequenceDiagram\n    participant C as 客户端\n    participant S as 服务器\n    C->>S: Client Hello（支持的加密套件、随机数1）\n    S->>C: Server Hello（选择加密套件、随机数2、证书）\n    C->>C: 校验证书合法性\n    C->>S: 预主密钥（用服务器公钥加密）\n    S->>S: 用私钥解密得到预主密钥\n    C->>C: 用随机数1+2+预主密钥生成会话密钥\n    S->>S: 用随机数1+2+预主密钥生成会话密钥\n    C->>S: 加密通信（对称密钥）\n```\n\n### 加密算法对比\n| 算法类型 | 特点 | 代表算法 | 应用场景 |\n|----------|------|----------|----------|\n| 对称加密 | 加解密速度快，密钥需要安全传输 | AES、DES、3DES | 大量数据加密，HTTPS通信过程 |\n| 非对称加密 | 加解密速度慢，密钥成对出现，公钥公开私钥保密 | RSA、ECC、DSA | 密钥交换、数字签名、证书验证 |\n| 哈希算法 | 不可逆，固定长度输出，用于完整性校验 | MD5、SHA-1、SHA-256 | 数字签名、数据完整性校验 |"
+                },
+                {
+                  "id": "1-2-3",
+                  "title": "GET和POST请求区别",
+                  "content": "| 对比项 | GET | POST |\n|--------|-----|------|\n| 可见性 | 数据在URL中对所有人可见 | 数据不会显示在URL中 |\n| 安全性 | 较差，参数保存在浏览器历史和服务器日志中 | 较好，参数不会被保存 |\n| 数据长度 | 受限制，最长约2kb | 无限制 |\n| 编码类型 | application/x-www-form-urlencoded | 支持multipart/form-data，可以传输二进制数据 |\n| 缓存 | 能被缓存 | 不能被缓存 |\n| 幂等性 | 幂等，多次请求结果一致 | 非幂等，多次请求可能产生不同结果 |\n| 用途 | 查询、获取数据 | 提交、修改数据 |\n\n### 常见HTTP请求方法\n- **GET**：向特定资源发送请求，查询数据并返回实体\n- **POST**：向指定资源提交数据进行处理，可能创建或修改资源\n- **PUT**：向服务器上传新的内容，幂等\n- **HEAD**：类似GET，返回的响应没有具体内容，用于获取报头\n- **DELETE**：请求服务器删除指定标识的资源，幂等\n- **OPTIONS**：测试服务器支持的请求方法\n- **PATCH**：局部更新资源，非幂等"
+                },
+                {
+                  "id": "1-2-4",
+                  "title": "HTTP常见响应状态码",
+                  "content": "### 状态码分类\n| 分类 | 含义 | 示例 |\n|------|------|------|\n| 1xx | 信息，请求已接收，继续处理 | 100 Continue |\n| 2xx | 成功，请求已成功接收处理 | 200 OK, 201 Created |\n| 3xx | 重定向，需要进一步操作完成请求 | 301 Moved Permanently, 302 Found |\n| 4xx | 客户端错误，请求有语法错误或无法实现 | 400 Bad Request, 403 Forbidden, 404 Not Found |\n| 5xx | 服务端错误，服务器处理请求时发生错误 | 500 Internal Server Error, 502 Bad Gateway, 503 Service Unavailable |\n\n### 常见状态码详解\n- **100 Continue**：继续，客户端应继续其请求\n- **200 OK**：请求成功，一般用于GET与POST请求\n- **201 Created**：资源创建成功，常用于PUT请求\n- **301 Moved Permanently**：永久重定向，资源永久移动到新地址\n- **302 Found**：暂时重定向，资源临时移动\n- **304 Not Modified**：资源未修改，可使用缓存\n- **400 Bad Request**：客户端请求的语法错误，服务器无法理解\n- **401 Unauthorized**：未授权，需要身份验证\n- **403 Forbidden**：服务器理解请求但拒绝执行\n- **404 Not Found**：服务器无法根据请求找到资源\n- **405 Method Not Allowed**：请求方法不被允许\n- **500 Internal Server Error**：服务器内部错误，无法完成请求\n- **502 Bad Gateway**：作为网关或代理服务器执行请求时，从远程服务器接收到无效响应\n- **503 Service Unavailable**：服务器暂时无法处理请求，通常是过载或维护\n- **504 Gateway Timeout**：网关或代理服务器请求超时"
+                }
+              ]
+            },
+            {
+              "id": "1-3",
+              "title": "操作系统基础",
+              "points": [
+                {
+                  "id": "1-3-1",
+                  "title": "进程和线程的区别",
+                  "content": "### 进程与线程架构\n```mermaid\ngraph TD\n    A[进程] --> B[独立地址空间]\n    A --> C[文件描述符表]\n    A --> D[线程1]\n    A --> E[线程2]\n    A --> F[线程n]\n\n    D --> D1[栈]\n    D --> D2[程序计数器]\n    D --> D3[寄存器上下文]\n\n    E --> E1[栈]\n    E --> E2[程序计数器]\n    E --> E3[寄存器上下文]\n\n    style B fill:#e3f2fd\n    style C fill:#e3f2fd\n```\n\n- **进程**：资源分配的最小单位，一个进程可以有多个线程，多个线程共享进程的堆和方法区资源，不共享栈、程序计数器\n- **线程**：任务调度和执行的最小单位，线程并行执行存在资源竞争和上下文切换的问题\n- **协程**：比线程更轻量级的存在，一个线程可以拥有多个协程，用户态调度，上下文切换开销极小\n\n### 进程、线程、协程对比\n| 对比项 | 进程 | 线程 | 协程 |\n|--------|------|------|------|\n| 调度者 | 操作系统内核 | 操作系统内核 | 用户态程序 |\n| 上下文切换开销 | 大 | 中 | 极小 |\n| 通信方式 | IPC（管道、消息队列、共享内存等） | 进程内共享内存，需要同步 | 直接读写变量，无需同步 |\n| 并发性 | 低 | 中 | 极高 |\n| 内存占用 | 大（GB级） | 中（MB级） | 小（KB级） |\n\n### 进程间通信方式（IPC）\n1. **管道pipe**：匿名管道用于亲缘进程，命名管道用于非亲缘进程，半双工，FIFO\n2. **信号**：复杂的通信方式，用于通知进程某个事件发生\n3. **消息队列**：克服了信号传递信息少、管道只能承载无格式字节流的缺点\n4. **共享内存**：多个进程直接读写同一块内存空间，最快的IPC方式，需要同步机制配合\n5. **信号量**：计数器，用于多进程对共享数据的访问同步，解决竞争条件\n6. **套接字Socket**：可用于不同机器之间的进程通信"
+                },
+                {
+                  "id": "1-3-2",
+                  "title": "用户态和核心态",
+                  "content": "- **用户态**：只能受限访问内存，运行所有应用程序\n- **核心态**：运行操作系统程序，CPU可以访问内存所有数据，包括外围设备\n\n### 为什么要区分用户态和内核态？\n限制不同程序之间的访问能力，防止它们获取别的程序的内存数据，或者获取外围设备数据发送到网络，保障系统安全稳定。\n\n### 用户态切换到内核态的方式\n```mermaid\ngraph LR\n    A[用户态] --> B[系统调用<br>主动请求内核服务]\n    A --> C[异常<br>如缺页异常、除零错误]\n    A --> D[外围设备中断<br>如IO完成中断]\n    B --> E[内核态]<br>执行内核代码\n    C --> E\n    D --> E\n    E --> A[返回用户态]\n```\n\n1. **系统调用**：主动调用，通过操作系统开放的中断实现，如Linux的int 80h中断\n2. **异常**：程序执行时发生异常，如缺页异常，会触发切换到内核态处理\n3. **外围设备中断**：外围设备完成请求操作后发送中断信号，CPU暂停当前任务切换到内核态处理中断"
+                },
+                {
+                  "id": "1-3-3",
+                  "title": "页面置换算法",
+                  "content": "### 先进先出（FIFO）\n- 原理：先进入内存的页面先被淘汰\n- 缺点：没有考虑页面实际使用频率，性能差，实际应用少\n\n### 最近最久未使用（LRU, Least Recently Used）\n- 原理：选择最近最久未使用的页面淘汰\n- 优点：考虑了程序访问的时间局部性，性能较好，实际应用多\n- 实现：可以通过LinkedHashMap实现，最近访问的元素放到链表尾部，淘汰时删除链表头部元素\n\n```java\n// Java LRU实现\nclass LRUCache {\n    private Map<Integer, Integer> map;\n    private int capacity;\n    \n    public LRUCache(int capacity) {\n        this.capacity = capacity;\n        // 第三个参数true表示按访问顺序排序\n        map = new LinkedHashMap<Integer, Integer>(capacity, 0.75f, true) {\n            @Override\n            protected boolean removeEldestEntry(Map.Entry eldest) {\n                return size() > capacity;\n            }\n        };\n    }\n    public int get(int key) {\n        return map.getOrDefault(key, -1);\n    }\n    public void put(int key, int value) {\n        map.put(key, value);\n    }\n}\n```\n\n### 最不经常使用（LFU, Least Frequently Used）\n- 原理：选择使用次数最少的页面淘汰\n- 优点：适合页面使用频率相对固定的场景\n- 缺点：需要额外统计访问次数，无法应对突然的热点访问\n\n### 最佳置换算法（OPT）\n- 原理：选择未来最长时间不被访问的页面淘汰\n- 优点：性能最好，缺页率最低\n- 缺点：理想化，无法实际实现，只能作为理论对比基准"
+                },
+                {
+                  "id": "1-3-4",
+                  "title": "死锁",
+                  "content": "### 什么是死锁\n两个或两个以上进程在执行过程中，因争夺资源而造成的相互等待的现象，若无外力作用，它们都将无法推进下去。\n\n### 死锁产生的四个必要条件\n```mermaid\ngraph LR\n    A[互斥条件] --> D[死锁]\n    B[请求与保持条件] --> D\n    C[非剥夺条件] --> D\n    E[循环等待条件] --> D\n```\n\n1. **互斥条件**：进程对所分配到的资源进行排他性使用，其他进程只能等待\n2. **请求与保持条件**：进程已经持有至少一个资源，又请求其他被占有的资源，阻塞时不释放已持有的资源\n3. **非剥夺条件**：进程已获得的资源在未使用完之前，不能被剥夺，只能自己释放\n4. **循环等待条件**：若干进程形成环路，每个进程都在等待下一个进程占有的资源\n\n### 死锁的解决方法\n破坏四个必要条件中的任意一个：\n1. **破坏互斥条件**：使用乐观锁，如CAS，避免排他锁\n2. **破坏请求与保持条件**：资源一次性分配，或者使用tryLock尝试获取锁，获取失败释放已有资源\n3. **破坏非剥夺条件**：当进程请求新资源未得到满足时，释放已占有的资源，如数据库deadlock超时机制\n4. **破坏循环等待条件**：资源有序分配，按编号递增请求资源，如转账场景按账户ID大小顺序加锁\n\n### 死锁排查工具\n- Linux：`jstack` 查看Java线程栈，`pstack` 查看进程栈\n- Windows：任务管理器、性能监视器\n- 可视化工具：VisualVM、JConsole"
+                }
+              ]
+            },
+            {
+              "id": "1-4",
+              "title": "Java基础",
+              "points": [
+                {
+                  "id": "1-4-1",
+                  "title": "面向对象三大特性",
+                  "content": "1. **封装**：把客观事物抽象成对象，对象的属性私有化，对外提供访问方法\n2. **继承**：子类可以复用父类的属性和方法，并扩展新的功能，Java是单继承多实现\n3. **多态**：通过子类重写父类方法，或者实现接口方法，同一个调用在不同场景有不同的实现\n\n### 多态实现原理\n底层是动态绑定，运行时才把方法调用与方法实现关联起来：\n- **静态绑定**：编译期确定，如方法重载\n- **动态绑定**：运行时确定，如方法重写、接口实现\n\n```java\n// 多态示例\ninterface Animal {\n    void makeSound();\n}\n\nclass Dog implements Animal {\n    @Override\n    public void makeSound() {\n        System.out.println(\"汪汪汪\");\n    }\n}\n\nclass Cat implements Animal {\n    @Override\n    public void makeSound() {\n        System.out.println(\"喵喵喵\");\n    }\n}\n\npublic class Test {\n    public static void main(String[] args) {\n        Animal dog = new Dog();\n        Animal cat = new Cat();\n        dog.makeSound(); // 输出：汪汪汪\n        cat.makeSound(); // 输出：喵喵喵\n    }\n}\n```"
+                },
+                {
+                  "id": "1-4-2",
+                  "title": "static和final关键字",
+                  "content": "### static关键字\n可以修饰属性、方法、代码块、内部类：\n- **修饰属性**：类级别属性，所有对象共享一份，类加载时初始化，先于对象创建，可以用类名直接调用\n- **修饰方法**：类加载时初始化，只能调用静态成员，不能用this/super\n- **修饰代码块**：类加载时执行一次，常用于初始化静态资源\n- **修饰内部类**：静态内部类不持有外部类引用，可以独立创建\n\n### final关键字\n可以修饰变量、方法、类：\n- **修饰变量**：基本类型值不可变，引用类型不能指向其他对象\n- **修饰方法**：不能被子类重写，private方法默认是final\n- **修饰类**：不能被继承，所有方法默认是final\n\n```java\n// static final 常量示例\npublic class Constants {\n    // 编译期常量，编译时直接替换为值\n    public static final int MAX_SIZE = 100;\n    // 运行期常量，类加载时初始化\n    public static final Date START_TIME = new Date();\n}\n```"
+                },
+                {
+                  "id": "1-4-3",
+                  "title": "抽象类和接口",
+                  "content": "### 相同点\n- 都不能被实例化\n- 都可以定义抽象方法，子类/实现类必须覆写\n\n### 不同点\n| 对比项 | 抽象类 | 接口 |\n|--------|--------|------|\n| 构造方法 | 有 | 无 |\n| 普通方法 | 可以有 | Java 8之前只能有抽象方法，Java 8+可以有默认方法和静态方法 |\n| 继承 | 单继承 | 多实现 |\n| 成员变量 | 可以是任意类型 | 只能是public static final常量 |\n| 访问修饰符 | 可以是任意访问修饰符 | 默认public，不能修改 |\n\n### 使用场景\n- **抽象类**：约束子类有共同行为，同时有默认实现和实例变量，属于\"is-a\"关系\n- **接口**：约束实现类有统一行为，不关心具体实现，实现类之间可以没有关联，属于\"has-a\"能力\n\n```java\n// 抽象类示例\nabstract class Animal {\n    protected String name;\n    // 抽象方法\n    public abstract void makeSound();\n    // 普通方法\n    public void eat() {\n        System.out.println(name + \" is eating\");\n    }\n}\n\n// 接口示例\ninterface Swimmable {\n    void swim();\n}\n\nclass Dog extends Animal implements Swimmable {\n    public Dog(String name) {\n        this.name = name;\n    }\n    @Override\n    public void makeSound() {\n        System.out.println(\"汪汪汪\");\n    }\n    @Override\n    public void swim() {\n        System.out.println(\"狗刨\");\n    }\n}\n```"
+                },
+                {
+                  "id": "1-4-4",
+                  "title": "反射原理及使用场景",
+                  "content": "### 什么是反射\n运行状态中，对于任意一个类都能知道它所有的属性和方法，对于任意一个对象都能调用它的任意方法和属性。\n\n### 原理\n首先获取类的字节码，然后把字节码中的方法、变量、构造函数映射成对应的Method、Field、Constructor等类。\n\n### 获取Class实例的三种方式\n1. 类名.class\n2. Class.forName(全限定类名)\n3. 对象.getClass()\n\n```java\n// 反射示例\npublic class ReflectTest {\n    public static void main(String[] args) throws Exception {\n        // 获取Class对象\n        Class<?> clazz = Class.forName(\"com.example.User\");\n        // 创建对象\n        Object user = clazz.newInstance();\n        // 获取方法\n        Method setNameMethod = clazz.getMethod(\"setName\", String.class);\n        Method getNameMethod = clazz.getMethod(\"getName\");\n        // 调用方法\n        setNameMethod.invoke(user, \"张三\");\n        String name = (String) getNameMethod.invoke(user);\n        System.out.println(name); // 输出：张三\n    }\n}\n```\n\n### 使用场景\n1. **开发通用框架**：比如Spring的配置化加载，动态创建Bean，ORM框架自动映射数据库字段\n2. **动态代理**：AOP的实现基础，拦截方法执行，统一处理日志、事务等\n3. **自定义注解**：通过反射解析注解，执行对应逻辑，如Swagger注解生成接口文档\n4. **扩展功能**：绕过访问限制，调用私有方法/属性，修改不可变类值"
+                }
+              ]
+            },
+            {
+              "id": "1-5",
+              "title": "数据结构",
+              "points": [
+                {
+                  "id": "1-5-1",
+                  "title": "ArrayList和LinkedList",
+                  "content": "### ArrayList\n- 底层基于动态数组实现\n- 支持快速随机访问，适合查找和遍历，时间复杂度O(1)\n- 插入删除需要移动元素，效率较低，时间复杂度O(n)\n- 默认初始容量10，扩容时变为原来的1.5倍\n\n### LinkedList\n- 底层基于双向链表实现\n- 插入删除只需要修改指针，效率较高，时间复杂度O(1)\n- 随机访问需要遍历链表，效率较低，时间复杂度O(n)\n- 可以作为栈、队列、双向队列使用\n\n### 线程安全实现对比\n| 实现方式 | 原理 | 性能 | 适用场景 |\n|----------|------|------|----------|\n| Vector | 全方法synchronized加锁 | 低 | 遗留代码，不推荐使用 |\n| Collections.synchronizedList | 包装类，全方法加对象锁 | 中 | 并发不高场景 |\n| CopyOnWriteArrayList | 写时复制，读无锁写加锁 | 读性能极高，写性能低 | 读多写少并发场景，如配置列表 |\n\n```java\n// CopyOnWriteArrayList实现原理示意\npublic class CopyOnWriteArrayList<E> {\n    private transient volatile Object[] array;\n    \n    public boolean add(E e) {\n        synchronized (lock) {\n            Object[] elements = getArray();\n            int len = elements.length;\n            // 复制新数组\n            Object[] newElements = Arrays.copyOf(elements, len + 1);\n            newElements[len] = e;\n            // 替换旧数组\n            setArray(newElements);\n            return true;\n        }\n    }\n    \n    public E get(int index) {\n        // 读操作直接访问数组，无锁\n        return get(getArray(), index);\n    }\n}\n```"
+                },
+                {
+                  "id": "1-5-2",
+                  "title": "HashMap原理",
+                  "content": "### 数据结构\n```mermaid\ngraph TD\n    A[哈希桶数组<br>table] --> A1[桶0]<br>Node1 --> Node2 --> Node3<br>链表长度>8转红黑树\n    A --> A2[桶1]<br>红黑树结构\n    A --> A3[桶2]<br>null\n    A --> An[桶n-1]<br>Node\n\n    style A2 fill:#e8f5e9,stroke:#4caf50\n```\n\n底层是数组+链表+红黑树：\n- 数组是哈希桶，每个位置存储链表头节点\n- 当链表长度超过8且数组长度超过64时，链表转为红黑树，解决哈希冲突查询慢的问题\n\n### 核心参数\n- 默认初始容量：16\n- 负载因子：0.75，当元素数量超过容量*0.75时触发扩容\n- 扩容：每次扩容为原来的2倍，重新计算所有元素的哈希位置\n\n### put流程\n1. 数组为空则初始化\n2. 计算key的hash值，(n-1)&hash得到桶下标\n3. 桶位置为空则直接创建Node插入\n4. 桶位置不为空，判断key是否相等，相等则覆盖value\n5. 是树节点则插入红黑树\n6. 是链表则遍历插入尾部，判断是否需要转为红黑树\n7. 插入完成判断是否需要扩容\n\n### JDK 1.7和1.8的区别\n| 对比项 | JDK 1.7 | JDK 1.8 |\n|--------|---------|---------|\n| 数据结构 | 数组+链表 | 数组+链表+红黑树 |\n| 插入方式 | 头插法 | 尾插法 |\n| 扩容问题 | 头插法会导致链表循环，死循环 | 尾插法解决死循环问题 |\n| 哈希计算 | 4次扰动 | 1次扰动（高16位异或低16位） |\n| 性能 | 链表长时查询O(n) | 红黑树查询O(logn) |"
+                },
+                {
+                  "id": "1-5-3",
+                  "title": "ConcurrentHashMap原理",
+                  "content": "### JDK 1.7实现\n```mermaid\ngraph TD\n    A[ConcurrentHashMap] --> S1[Segment 0]<br>ReentrantLock锁\n    A --> S2[Segment 1]<br>ReentrantLock锁\n    A --> Sn[Segment 15]<br>ReentrantLock锁\n    S1 --> T1[哈希桶数组]\n    S2 --> T2[哈希桶数组]\n    Sn --> Tn[哈希桶数组]\n```\n\n- 分段锁（Segment）实现，默认16个Segment\n- 每个Segment是独立的ReentrantLock，锁粒度是Segment\n- 不同Segment可以并发访问，提高并发度\n\n### JDK 1.8实现\n```mermaid\ngraph TD\n    A[ConcurrentHashMap] --> T[哈希桶数组]\n    T --> T1[桶0<br>synchronized锁]\n    T --> T2[桶1<br>synchronized锁]\n    T --> T3[桶2<br>synchronized锁]\n    T --> Tn[桶n<br>synchronized锁]\n    style T1 fill:#e3f2fd\n    style T2 fill:#fff3e0\n```\n\n- 摒弃Segment概念，使用Node数组+链表+红黑树\n- 锁粒度是每个桶节点，使用synchronized + CAS实现并发控制\n- 支持更高的并发度，性能比1.7提升数倍\n\n### 与Hashtable的区别\n| 对比项 | Hashtable | ConcurrentHashMap 1.7 | ConcurrentHashMap 1.8 |\n|--------|-----------|------------------------|------------------------|\n| 锁粒度 | 全表锁 | Segment分段锁 | 桶级锁 |\n| 锁实现 | synchronized | ReentrantLock | synchronized + CAS |\n| 并发度 | 1 | 16（默认） | 数组大小 |\n| 性能 | 极低 | 中等 | 高 |\n| null key/value | 不允许 | 不允许 | 不允许 |"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
